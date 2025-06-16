@@ -290,7 +290,7 @@ class plot_data_from_queue(ABC):
             if (item := self.dataqueue.get(timeout=self.timeout)) is not None:
                 item = np.asarray(item).squeeze()
                 self._update_data_buffer(item)
-                if self.timesincelastupdate * self.timeinterval > updatetime:
+                if self.timesincelastupdate * self.timeinterval >= updatetime:
                     self._plotting_buffer()
         except (Empty, AttributeError):
             pass
@@ -300,7 +300,7 @@ class plot_data_from_queue(ABC):
             while (item := self.dataqueue.get(timeout=10)) is not None:
                 item = np.asarray(item).squeeze()
                 self._update_data_buffer(item)
-                if self.timesincelastupdate * self.timeinterval > self.updatetime:
+                if self.timesincelastupdate * self.timeinterval >= self.updatetime:
                     self._plotting_buffer()
             if self.timesincelastupdate > 0:
                 self._plotting_buffer()
@@ -324,7 +324,7 @@ class plot_data_from_queue(ABC):
             item = np.asarray(item).squeeze()
             if item[0].size == self.data_buffer[0].size:
                 self._update_data_buffer(item)
-                if self.timesincelastupdate * self.timeinterval > self.updatetime:
+                if self.timesincelastupdate * self.timeinterval >= self.updatetime:
                     self._plotting_buffer()
                 self._dataqueue = dataqueue
             else:
