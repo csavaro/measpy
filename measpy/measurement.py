@@ -158,9 +158,12 @@ class Measurement:
             else:
                 dursigs = calc_dur_siglist(self.out_sig)
                 if params['dur']!=dursigs:
-                    print('Selected duration is different thant duration of combined output signals.')
-                    print('It is changed to match.')
-                self.dur = dursigs
+                    print(f"Selected duration {params['dur']} is different than duration of combined output signals.")
+                    N = int(np.ceil(params['dur']/dursigs))
+                    self.dur = N*dursigs
+                    print(f'It is changed to match : dur = {self.dur} which is {N} output signals')
+                else:
+                    self.dur = dursigs
         else:
             if type(self.out_sig)==type(None):
                 #raise Exception('No duration nor out_sig given. Impossible to determine task duration')
@@ -323,7 +326,7 @@ class Measurement:
             if isinstance(out_sig,list):
                 out_sig = Signal.pack(out_sig)
             if isinstance(out_sig,Signal):
-                out_sig.to_hdf5(H5file, "out_sig", data_type)
+                out_sig.to_hdf5(H5file, "out_sig")
             if isinstance(in_sig,list):
                 in_sig = Signal.pack(in_sig)
             if isinstance(in_sig,Signal):
@@ -360,6 +363,9 @@ class Measurement:
             self.out_sig = Signal.from_hdf5(H5file["out_sig"])
         except KeyError:
             self.out_sig = None
+        for i in H5file.keys():
+            if i not in ["in_sig","out_sig"]:
+                print(f"Warning : this file contain a dataset named {i}")
 
     # ------------------------
     @classmethod
@@ -406,6 +412,7 @@ class Measurement:
         self=cls()
         self.fs=convl1(float,task_dict['fs'])
         self.dur=convl1(float,task_dict['dur'])
+        self.desc=convl1(str,task_dict['desc'])
         try:
             self.date=convl1(str,task_dict['date'])
             self.time=convl1(str,task_dict['time'])

@@ -1,7 +1,16 @@
+from pathlib import Path
+import sys
+
+
+paths_lib = [Path.home() / "Documents" / "measpy"]
+paths_lib = [Path.home() / "Dev" / "measpy"]
+
+_ = [sys.path.insert(0, str(p)) for p in paths_lib]
 import measpy as mp
 from measpy._tools import _add_N_data
 from measpy.signal import Signal, SignalType
-from measpy.measurement import Measurement
+
+# from measpy.measurement import Measurement
 from measpy.ni import ni_run_measurement, ni_callback_measurement
 from measpy._plot_tools import plot_data_from_queue
 import numpy as np
@@ -11,13 +20,115 @@ import h5py
 from copy import deepcopy
 from time import sleep, time
 import logging
-import os
+
+# import os
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button, TextBox
 from matplotlib.transforms import Bbox
 import math
 
+from tkinter.filedialog import asksaveasfilename
+from pathlib import Path
+
+import argparse
+
 logger = logging.getLogger(__name__)
+
+Signalname = "end_sig"
+
+# Direct plot
+# refresh_delay = 0.2
+# plotbuffersize = 500
+
+argsdict = {
+    "N_sensor": {
+        "short": "N",
+        "help": "Number of pressure channel (default: %(default)d)",
+        "default": 32,
+        "type": int,
+    },
+    "Frequency": {
+        "short": "f",
+        "help": "Acquisition frequency for each channel (default: %(default)f)",
+        "default": 1000,
+        "type": float,
+    },
+    "settling_time_micro": {
+        "short": "ta",
+        "help": "Time (µs) to wait after change channel to start take into account data",
+        "default": 25,
+        "type": float,
+    },
+    "N_average": {
+        "short": "Na",
+        "help": "Number of averaged datapoint used to calculate each datapoint for each channel (default: %(default)d)",
+        "default": 5,
+        "type": int,
+    },
+    "dur": {
+        "short": "d",
+        "help": "Duration of measurment  (default: %(default)f)",
+        "default": 120,
+        "type": float,
+    },
+    "info": {
+        "short": "i",
+        "help": "Description of the experiment",
+        "default": "Pressure scanner measurment",
+        "type": str,
+    },
+    "refresh_delay": {
+        "short": "RD",
+        "help": "Plot update delay (default: %(default)f) s",
+        "default": 0.2,
+        "type": float,
+    },
+    "plot_time": {
+        "short": "PT",
+        "help": "Duration of plot (default: %(default)f) s",
+        "default": 5,
+        "type": float,
+    },
+    "scannershift": {
+        "short": "Sc",
+        "help": "Shift of simulated measurment in µs",
+        "default": 20,
+        "type": float,
+    },
+}
+
+parser = argparse.ArgumentParser(
+    prog="PressureScaner",
+    description="Launch program to use scannivalve pressure scanner",
+    epilog="",
+)
+
+for arg, desc in argsdict.items():
+    args = [f"-{desc['short']}", f"--{arg}"]
+    desc.pop("short")
+    parser.add_argument(
+        *args,
+        **desc,
+    )
+parser.add_argument(
+    "-v", "--verbose", action="store_true", help="add debug messages"
+)
+
+parser.add_argument("-s", "--save", action="store_true", help="save in hdf5 file")
+parser.add_argument(
+    "-p", "--plot", action="store_true", help="Plot data during experiment"
+)
+parser.add_argument(
+    "--sim_data",
+    action="store_true",
+    help="Simulate data after demultiplex (random)",
+)
+parser.add_argument(
+    "--sim_measu",
+    action="store_true",
+    help="Simulate data before demultiplex (sinusoidal)",
+)
+args = parser.parse_args()
 
 # def dispatch(q_in : Queue, qs_out : list[Queue], stop_event : Event, timeout : float|int):
 #     print("start dispatch")
@@ -41,7 +152,19 @@ def dispatch(q_in: Queue, qs_out: list[Queue], timeout: float | int):
         q_out.put(None)
 
 
-def scaleAddresses(addr: list, fb: int, fs: int) -> tuple[list, int]:
+# def calc_fs(fb, N_average, N_sensor):
+#     channel_time_micro = 10**6 / (fb * N_sensor)
+#     fs = 10**6 * (N_average) / (channel_time_micro - settling_time_micro)
+#     if fs > 1_000_000:
+#         raise ValueError(f"Card frequency {fs} is too high")
+
+#     logger.info(f"Ni card frequency set at {fs}")
+#     return fs
+
+
+def scaleAddresses(
+    addr: list, fb: int, N_average: int, settling_time_micro: float
+) -> tuple[list, int]:
     """
     Add/duplicate addresses from addr list to match to difference frequency of fs and fb.
 
@@ -49,45 +172,53 @@ def scaleAddresses(addr: list, fb: int, fs: int) -> tuple[list, int]:
     :type addr: list
     :param fb: frequency of expected return measurement
     :type fb: int
-    :param fs: frequency of the data acquisition on the card
-    :type fs: int
-    :return: scaled address list and new frequency fs to send to the card
-    :rtype: tuple (addr,fs)
+    :param N_average: Number of measure points used to calculate each datapoint per scan
+    :type N_average: int
+    :param settling_time_micro: Time to wait in µs before starting taking into account data after channel change
+    :type settling_time_micro: float
+    :return: scaled address list, frequency fs to send to the card and number of measured point per channel per scan
+    :rtype: tuple (addr,fs,nbIt)
     """
     addr = deepcopy(addr)
     nbAdr = len(addr)
-    nbIt = int(round(fs / (nbAdr * fb)))
+    # nbIt = int(np.ceil(fs / (nbAdr * fb)))
+    nbIt = int(
+        np.ceil(
+            10**6 * N_average / (10**6 - settling_time_micro * nbAdr * fb)
+        )
+    )
     for it in range(nbAdr):
         addr[it * nbIt : it * nbIt + 1] *= nbIt
     # return addr,fs/(nbAdr*nbIt)
-    nfs = nbAdr * nbIt * fb
-    if nfs != fs:
-        logger.warning(f"fs has been adjusted from {fs} Hz to {nfs} Hz")
-    return addr, nfs
+    fs = nbAdr * nbIt * fb
+    logger.info(f"Ni card frequency set at {fs}")
+    return addr, fs, nbIt
 
 
 def mapValuesByAdr(
-    arrValues: np.ndarray, arrAdr: np.ndarray, rate: float, calc: str = "mean"
+    arrValues: np.ndarray, arrAdr: np.ndarray, diff: int, calc: str = "mean"
 ) -> dict[str : np.ndarray]:
     """
     :param arrValues: values acquired
     :type arrValues: numpy.ndarray
     :param arrAdr: digital values of addresses sent
     :type arrAdr: numpy.ndarray
-    :param rate: rate of values to keep per address, must be between 0 and 1
-    :type rate: float
+    :param diff: number of points ignored per address after each change of adress
+    :type diff: int
     :param calc: calculation type to get a single value from multiple per address. Can be "mean" or "median". "mean" by default.
     :type calc: str
     :return: mapped values with their address as key, one value per time.
     :rtype: dict[str:numpy.ndarray]
     """
-    if rate < 0 or rate > 1:
-        raise ValueError(f"rate should be between 0 and 1. currently : {rate}")
+    # if rate < 0 or rate > 1:
+    #     raise ValueError(f"rate should be between 0 and 1. currently : {rate}")
 
     mappedValues = {}
     nb = arrAdr.size / np.unique(arrAdr).size
-    diff = int(round((1 - rate) * nb / 2))
-
+    if diff > nb:
+        raise ValueError(f"Diff is to high currently : {diff}")
+    # diff = int(round((1 - rate) * nb / 2))
+    # diff = int(round((1 - rate) * nb))
     cleanValues = np.array(arrValues)
     if cleanValues.size % arrAdr.size != 0:
         logger.warning(
@@ -102,8 +233,8 @@ def mapValuesByAdr(
     cleanValues = np.stack(np.hsplit(scan_splitted, scan_splitted.shape[1] / nb))
 
     if diff != 0:
-        cleanValues = cleanValues[:, :, diff:-diff]
-
+        # cleanValues = cleanValues[:, :, diff:-diff]
+        cleanValues = cleanValues[:, :, diff:]
     if calc == "mean":
         cleanValues = np.mean(cleanValues, axis=2)
     elif calc == "median":
@@ -113,6 +244,19 @@ def mapValuesByAdr(
         mappedValues[adr] = cleanValues[i]
 
     return cleanValues
+
+
+def calc_chuncksizes(refresh_delay, fb, N_sensor, nbIt):
+    N_value_plot = int(refresh_delay * fb)
+    N_value_save = int(2**14 / (N_sensor))
+    N_value_onesec = int(fb)
+    nvalue = min([N_value_plot, N_value_save, N_value_onesec])
+    N_raw_value = nvalue * N_sensor * nbIt
+    logger.info(
+        f"Data will be processed by chunck of {N_raw_value} raw datapoint "
+        f"Corresponding to {nvalue} points per channel"
+    )
+    return nvalue, N_raw_value
 
 
 # Define class with custom plot configuration.
@@ -139,7 +283,7 @@ class direct_plotting(plot_data_from_queue):
                 self.x_data[chan],
                 self.plotbuffer[chan],
                 animated=True,
-                label=chan,
+                label=chan + 1,
             )[0]
             for chan in range(self.nchannel)
         ]
@@ -216,6 +360,7 @@ class direct_plotting(plot_data_from_queue):
         self.btnDown.on_clicked(tamp_down)
 
         self.hide = False
+
         def hide(event):
             self.hide = True
 
@@ -249,7 +394,7 @@ class direct_plotting(plot_data_from_queue):
                 logger.warning(
                     f"plot cannot change visibility of specified line {expr}, should be an integer"
                 )
-                
+
     def rescaling(self):
         # defines method that rescale axis when a flag is set to True
         # the other flag : 'self.bm.change_axe = True' is needed because changing axis
@@ -284,13 +429,12 @@ class direct_plotting(plot_data_from_queue):
             )
             self.tamp_down = False
             self.bm.changed_axe = True
-        
+
         if self.hide:
             expr = self.txbHide.text
             logger.info(f"Show/hide channel {expr}")
             self.hide_channel(expr)
             self.hide = False
-            
 
     def data_process(self):
         # Update x_data and plotbuffer, using data_buffer that is updated by the queue
@@ -327,39 +471,57 @@ class PressureScanner:
     Possibility to map the measured signal with the sent addresses in a multichannel signal.
     """
 
-    def __init__(self, addresses: list, fs: int, fb: int, rate: float, **kwargs):
+    def __init__(
+        self,
+        addresses: list,
+        N_average: int,
+        fb: int,
+        settling_time_micro: float,
+        **kwargs,
+    ):
         """
         Include different methods to measure while sending a digital output signal.
         Possibility to map the measured signal with the sent addresses in a multichannel signal.
 
         :param addresses: List of addresses as digital values meant to be sent to the card.
         :type addresses: list
-        :param fs: Frequency to set on the card to acquire data by a measure and iterate addresses. from 10Hz to 1MHz.
-        :type fs: int
+        :param N_average: Data are averaged over N_average measure for each final value
+        :type N_average: int
         :param fb: Frequency of the measured signal expected after transformations and mapping. Should be below fs, the further the better.
         :type fb: int
-        :param rate: rate of values to keep while doing the mapping with the addresses. Should be between 0 and 1.
-        :type rate: float
+        :param settling_time_micro: Time to wait in µs before starting taking into account data after channel change
+        :type settling_time_micro: float
         """
+        # :param rate: rate of values to keep while doing the mapping with the addresses. Should be between 0 and 1.
+        # :type rate: float
         self.stop_event = Event()
         self.M = None
-        self.rate = rate
+        # self.rate = rate
 
+        self.N_sensor = len(addresses)
+        self.N_average = N_average
         self.raw_adrs = addresses
-        addresses, self.fs = scaleAddresses(addr=addresses, fb=fb, fs=fs)
-        if self.fs != fs:
-            logger.warning(
-                f"fs (frequency of the ni card) has changed from {fs} Hz to {self.fs} Hz to match the specified addresses and fb (frequency of the result) values"
-            )
+        self.settling_time_micro = settling_time_micro
+        addresses, self.fs, self.nbIt = scaleAddresses(
+            addr=addresses,
+            fb=fb,
+            N_average=N_average,
+            settling_time_micro=settling_time_micro,
+        )
+        # if self.fs != fs:
+        #     logger.warning(
+        #         f"fs (frequency of the ni card) has changed from {fs} Hz to {self.fs} Hz to match the specified addresses and fb (frequency of the result) values"
+        #     )
+        self.diff = int(self.settling_time_micro * self.fs * 10**-6)
         self.fb = fb
 
         self.rawQ = Queue()
         self.mappedQ = Queue()
         self.resultQs = []
 
-        self.n_values = None
-        self.n_raw_value = None
-        self.n_clean_value = None
+        self.n_values = None  # =f(refresh delay and/or saverate (chuncksize))
+        self.n_raw_value = None  # =f(n_values, rate, N_average,N_sensor,fs,fb)
+        # self.n_clean_value = None
 
         self.adr_sig = Signal(
             fs=self.fs, raw=np.array(addresses), type=SignalType.DIGITAL
@@ -386,13 +548,17 @@ class PressureScanner:
         if "out_map" in kwargs.keys():
             _out_map.extend(kwargs["out_map"])
 
+        in_sig = [mp.Signal(fs=self.fs, desc="Empty sigal")]
+
         self.M = mp.Measurement(
             device_type="ni",
             out_sig=_out_sig,
             out_map=_out_map,
             out_device=out_device,
+            in_sig=in_sig,
             **kwargs,
         )
+        self.M.desc += f" Data averaged over {self.N_average} measure point, ({self.diff} point removed)"
 
     def runMeasurement(self, **kwargs) -> Signal:
         """
@@ -409,7 +575,7 @@ class PressureScanner:
         times.append(time())
 
         print("start matching values with their addresses")
-        self.result = mapValuesByAdr(self.M.in_sig[0], self.adr_sig, self.rate)
+        self.result = mapValuesByAdr(self.M.in_sig[0], self.adr_sig, self.diff)
         print("finisehd matching values with their addresses")
 
         times.append(time())
@@ -422,7 +588,7 @@ class PressureScanner:
 
         return self.result
 
-    def runCbMeasurement(self, n_values=None, **kwargs):
+    def runCbMeasurement(self, dur=None, **kwargs):
         """
         Meant to run in a separated thread.
 
@@ -432,13 +598,13 @@ class PressureScanner:
         :type n_value: int
         :param **kwargs: parameters to put in ni_callback_measurement function.
         """
-        if self.n_raw_value is None:
-            if n_values is not None:
-                self.n_raw_value = n_values
-        elif n_values is not None:
-            logger.warning(
-                f"n_raw_values is already set as {self.n_raw_value}. Assignation as {n_values} has been aborted"
-            )
+        # if self.n_raw_value is None:
+        #     if n_values is not None:
+        #         self.n_raw_value = n_values
+        # elif n_values is not None:
+        #     logger.warning(
+        #         f"n_raw_values is already set as {self.n_raw_value}. Assignation as {n_values} has been aborted"
+        #     )
 
         def callback(buffer_in: np.ndarray, n_values: int):
             self.rawQ.put(buffer_in.copy())
@@ -451,7 +617,7 @@ class PressureScanner:
                 logger.info("measurement done")
                 self.rawQ.put(None)
 
-            Tmeas = Thread(target=work, args=(self.stop_event, None))
+            Tmeas = Thread(target=work, args=(self.stop_event, dur))
             Tmeas.start()
 
             try:
@@ -459,6 +625,30 @@ class PressureScanner:
             except Exception as e:
                 self.stop_event.set()
                 raise e
+
+    def simulate_measure(self, shift=0.0, **kwargs):
+        Nscan = int(np.ceil(self.M.dur * self.fb))
+        vals = np.sin(
+            (1 / (5 * self.fb))
+            * np.outer(np.arange(Nscan), 1 + self.adr_sig.raw * 1.0)
+        ).flatten()
+        if shift > 0:
+            Nshift = int(np.ceil(shift * self.fs * 10**-6))
+            vals = np.roll(vals, Nshift)
+        dur = vals.size
+        if Nshift > self.diff:
+            logger.info(
+                f"{100*(Nshift-self.diff)/self.nbIt} % of datapoints are mixed"
+            )
+        else:
+            logger.info("No datapoint are mixed")
+        for val in range(0, dur, self.n_raw_value):
+            if not self.stop_event.is_set():
+                self.rawQ.put(vals[val : val + self.n_raw_value])
+                sleep(self.n_raw_value / self.fs)
+            else:
+                break
+        self.rawQ.put(None)
 
     # Create method that will read rawQ and write in mappedQ
     def runMapData(self, timeout=10):
@@ -478,7 +668,7 @@ class PressureScanner:
                 logger.debug(f"reading : {raw_data}")
                 # clean_data = np.array(list(mapValuesByAdr(raw_data,self.adr_sig.values,self.rate).values()))
                 clean_data = mapValuesByAdr(
-                    raw_data, self.adr_sig.values, self.rate
+                    raw_data, self.adr_sig.values, self.diff
                 )
 
                 logger.debug(f"putting : {clean_data}")
@@ -504,32 +694,33 @@ class PressureScanner:
             self.resultQs.append(rQ)
 
             sleep(2)
-            print(f"Starting saving data in {filepath}/in_sigs\n")
+            print(f"Starting saving data in {filepath}/{Signalname}\n")
             # self.n_clean_value = int((self.n_raw_value * self.rate * self.fb) / self.fs)
             item = np.array(rQ.get())
             # Get dimension of item for multichannel case
             dims = item.shape
-            self.n_clean_value = dims[0]
-
+            n_clean_value = dims[0]
+            if n_clean_value != self.n_values:
+                raise ValueError("???")
+            self.M.create_hdf5(filepath, chunck_size=n_clean_value)
             sigList = []
             for adr in np.unique(self.adr_sig.values):
                 sigList.append(
                     Signal(
                         fs=self.fb,
-                        desc=adr,
+                        desc=str(adr + 1),
                         # unit= "V"
                         # cal=sigValues.cal
                     )
                 )
             resultSignal: Signal = Signal.pack(sigList)
 
-            resultSignal.create_hdf5dataset(
-                filepath, chunck_size=self.n_clean_value
-            )
-
             with h5py.File(filepath, "r+") as H5file:
-                dataset = H5file["in_sigs"]
-                _add_N_data(dataset, item, self.n_clean_value)
+                resultSignal.create_hdf5dataset(
+                    H5file, chunck_size=n_clean_value, dataset_name=Signalname
+                )
+                dataset = H5file[Signalname]
+                _add_N_data(dataset, item, n_clean_value)
                 # #Get the chunksize and datatype of the dataset
                 # chunksize = dataset.chunks[0]
                 # datatype = dataset.dtype
@@ -538,9 +729,9 @@ class PressureScanner:
                     item = np.array(item)
                     logger.debug(
                         f"ITEM SIZD: {item.shape}, - DATASET SIZD: {dataset.shape} \
-                            - N_CLEAN: {self.n_clean_value}\n"
-                        )
-                    _add_N_data(dataset, item, self.n_clean_value)
+                            - N_CLEAN: {n_clean_value}\n"
+                    )
+                    _add_N_data(dataset, item, n_clean_value)
         except Exception as e:
             self.stop()
             raise e
@@ -565,9 +756,8 @@ class PressureScanner:
         try:
             rQ = Queue()
             self.resultQs.append(rQ)
-
             A = direct_plotting(
-                fb,
+                self.fb,
                 updatetime=refresh_delay,
                 plotbuffersize=plotbuffersize,
                 nchannel=np.unique(self.adr_sig.values).size,
@@ -583,28 +773,27 @@ class PressureScanner:
             self.stop()
             raise e
 
-    def runFillMappedQueue(
-        self, interval: float = 0.1, time: float = math.inf, n_value=50
-    ):
+    def runFillMappedQueue(self, dur: float = math.inf):
         """
         Tool function used for debugging output interfaces.
         """
+        interval = self.n_values / self.fb
         try:
-            from random import random
+            # from random import random
 
             if self.mappedQ is None:
                 self.mappedQ = Queue()
 
             stopwatch = 0.0
             logger.info("start filling Q")
-            while not self.stop_event.is_set() and stopwatch < time:
+            while not self.stop_event.is_set() and stopwatch < dur:
                 # qfill = np.array([(random()*1)/2] * 50)
                 # qfill = np.array(np.sin(0.01*np.outer(np.arange(50),1+32*1.0)).flatten())
                 # qfill = np.random.random(size=(50,NCHANNELS))
                 # qfill = np.asarray( [[random()+i for i,adr in enumerate(self.raw_adrs)]] * n_value)
                 qfill = np.asarray(
                     [[stopwatch + i for i, adr in enumerate(self.raw_adrs)]]
-                    * n_value
+                    * self.n_values
                 )
 
                 # print("putting : ",np.unique(qfill))
@@ -640,9 +829,9 @@ class PressureScanner:
         ):  # or ((data := self.Q.get(timeout=timeout)) is not None):
             data = self.rawQ.get(timeout=timeout)
             if mappedValues is None:
-                mappedValues = mapValuesByAdr(data, self.adr_sig.values, 1)
+                mappedValues = mapValuesByAdr(data, self.adr_sig.values, 0)
             else:
-                newMappedValues = mapValuesByAdr(data, self.adr_sig.values, 1)
+                newMappedValues = mapValuesByAdr(data, self.adr_sig.values, 0)
                 for adr in mappedValues.keys():
                     mappedValues[adr].append(newMappedValues[adr])
             sigList = []
@@ -650,7 +839,7 @@ class PressureScanner:
                 sigList.append(
                     Signal(
                         fs=self.fb,
-                        desc=adr
+                        desc=str(adr)
                         # cal=sigValues.cal
                     )
                 )
@@ -671,15 +860,18 @@ class PressureScanner:
 
     def start(
         self,
+        dur: float = np.inf,
         flag_autosave: bool = False,
-        filepath: str = None,  # runAutoSaveH5
+        # filepath: str = None,  # runAutoSaveH5
         flag_directplot: bool = False,
         refresh_delay: float = None,
         plotbuffersize: int = None,  # runDirectPlot
         flag_sim_mapdata: bool = False,
-        interval: float = None,
-        time: float | int = math.inf,
-        n_value: int = 50,  # runFillMappedQueue
+        # interval: float = None,
+        # n_value: int = 50,  # runFillMappedQueue
+        flag_sim_measurment: bool = False,  # runFillMappedQueue
+        # Nscan: int = 1,
+        shift: int = 0,
     ):
         """
         Start a measurement and create output management depending on the parameters set.
@@ -693,8 +885,7 @@ class PressureScanner:
         - Run in a thread runMapData if flag_sim_mapdata is False. Read rawQ and map data with their channel and put it in mappedQ.
         - Run in a thread runFillMappedQ if flag_sim_mapdata is True. Fill mappedQ with random values. Associated parameters are :
             - interval
-            - time
-            - n_value
+            - dur
 
         Post-process :
         - Run in a thread runAutoSaveH5 if flag_autosave is True. Regulary save mapped data in a file. Associated parameters are :
@@ -704,24 +895,46 @@ class PressureScanner:
             - plotbuffersize
 
         """
+        self.n_values, self.n_raw_value = calc_chuncksizes(
+            refresh_delay, self.fb, self.N_sensor, self.nbIt
+        )
+
         # Trtq = Thread(target=self.readyToQuit)
         Trdq = Thread(target=dispatch, args=(self.mappedQ, self.resultQs, 10))
         if flag_autosave:
+            filepath = Path(
+                asksaveasfilename(
+                    title="File selection",
+                    defaultextension=".h5",
+                    initialdir=Path.home() / "Dev" / "data_test",
+                    filetypes=(("hdf5 files", "*.h5"),),
+                    confirmoverwrite=True,
+                )
+            )
             Trsh = Thread(target=self.runAutoSaveH5, args=(filepath,))
-        if not flag_sim_mapdata:
-            Trmc = Thread(target=self.runCbMeasurement)
+        elif not flag_directplot:
+            raise ValueError("No save and not plot")
+        if not flag_sim_mapdata and not flag_sim_measurment:
+            Trmc = Thread(target=self.runCbMeasurement, args=(dur,))
+            Trmd = Thread(target=self.runMapData)
+        elif flag_sim_measurment:
+            Trfq = Thread(target=self.simulate_measure, args=(shift,))
             Trmd = Thread(target=self.runMapData)
         else:
             Trfq = Thread(
-                target=self.runFillMappedQueue, args=(interval, time, n_value)
+                target=self.runFillMappedQueue,
+                args=(dur,),
             )
 
         # Trtq.start()
         Trdq.start()
         if flag_autosave:
             Trsh.start()
-        if not flag_sim_mapdata:
+        if not flag_sim_mapdata and not flag_sim_measurment:
             Trmc.start()
+            Trmd.start()
+        elif flag_sim_measurment:
+            Trfq.start()
             Trmd.start()
         else:
             Trfq.start()
@@ -732,8 +945,11 @@ class PressureScanner:
         Trdq.join()
         if flag_autosave:
             Trsh.join()
-        if not flag_sim_mapdata:
+        if not flag_sim_mapdata and not flag_sim_measurment:
             Trmc.join()
+            Trmd.join()
+        elif flag_sim_measurment:
+            Trfq.join()
             Trmd.join()
         else:
             Trfq.join()
@@ -747,98 +963,77 @@ class PressureScanner:
 
 
 if __name__ == "__main__":
-    from pathlib import Path
-    import tkinter as tk
-    from measpy.ni import ni_get_devices
+    # to DO argparse
 
-    logging.basicConfig(level=logging.DEBUG)
-    # d = ni_get_devices()
-    # for name in d.device_names:
-    #     print(f"Connected ni card {name} : {d[name].product_type}, serial : d[name].serial_num")
-    # device_name = d.device_names[0]
-    # print(f"using {device_name}")
-
-    device_name = "dev"
+    level = logging.INFO
+    if args.verbose:
+        level = logging.DEBUG
+    logging.basicConfig(level=level)
+    args.sim_measu = True
+    args.plot = True
+    # device_name = "dev"
     # print("start")
 
-    t0 = time()
-
-    N_sensor = 32
-    fb = 100
-    rate = 0.8
-    N_average = 50  # data are averaged over n_average measure for each value
-    # Direct plot
-    refresh_delay = 0.2
-    plotbuffersize = 500
-    dur = 50
-
-    N_datapervalue = int(
-        np.ceil(N_average / rate)
-    )  # number of point acquired per point registered per channel
-
-    fs = N_sensor * fb * N_datapervalue
-    if fs > 1_000_000:
-        raise ValueError(f"Card frequency {fs} too high")
-
-    print(f"Ni card frequency set at {fs}")
-    # fs = 10000 # 1MHz max
+    # t0 = time()
 
     # H5 Save
     # filepath = "C:\\Users\\cleme\\OneDrive\\Documents\\Stage ENSTA\\measpy\\ContinousMeasure.hdf5"
-    filepath = Path(
-        tk.filedialog.asksaveasfilename(
-            title="File selection",
-            defaultextension=".h5",
-            initialdir=Path.home() / "Dev" / "test_pressure",
-            filetypes=(("hdf5 files", "*.h5"),),
-            confirmoverwrite=False,
-        )
-    )
     # if os.path.exists(filepath):
     #     os.remove(filepath)
 
-    # addr = [0,1,2,4,8,16,32]
-    addr = list(range(0, N_sensor))
-    addr_sig = mp.Signal(fs=fs, raw=addr, type=SignalType.DIGITAL)
+    addr = list(range(0, args.N_sensor))
+    # addr_sig = mp.Signal(fs=fs, raw=addr, type=SignalType.DIGITAL)
 
-    t1 = time()
+    # t1 = time()
 
-    presS = PressureScanner(addresses=addr, fs=fs, fb=fb, rate=rate)
+    presS = PressureScanner(
+        addresses=addr,
+        N_average=args.N_average,
+        fb=args.Frequency,
+        settling_time_micro=args.settling_time_micro,
+    )
 
-    t2 = time()
+    # t2 = time()
+    if not args.sim_data and not args.sim_measu:
+        from measpy.ni import ni_get_devices
+
+        d = ni_get_devices()
+        for name in d.device_names:
+            print(
+                f"Connected ni card {name} : {d[name].product_type}, serial : d[name].serial_num"
+            )
+        device_name = d.device_names[0]
+        print(f"using {device_name}")
+    else:
+        device_name = "None"
 
     presS.createMeasurement(
         adr_port=1,
         out_device=device_name,
-        dur=dur,
-        in_sig=[mp.Signal(fs=fs, unit="V")],
-        # ,dur=5
-        # in_map=[1]
+        dur=args.dur,
+        in_map=[1],
+        desc=args.info,
     )
-    # TO CHANGE, SHOULD BE SET INSIDE, NOT BY USER
-    # data are processed in chunk corresponding to datachunck final datapoints
-    datachunck = int(fb * refresh_delay)  
-    presS.n_raw_value = N_sensor * N_datapervalue * datachunck
-
-    t3 = time()
-
+    # t3 = time()
     presS.start(
-        flag_autosave=True,
-        filepath=filepath,
-        flag_directplot=True,
-        refresh_delay=refresh_delay,
-        plotbuffersize=plotbuffersize,
-        flag_sim_mapdata=True,
-        interval=refresh_delay,
-        time=dur,
-        n_value=datachunck,
+        dur=args.dur,
+        flag_autosave=args.save,
+        flag_directplot=args.plot,
+        refresh_delay=args.refresh_delay,
+        plotbuffersize=int(args.plot_time * args.Frequency),
+        flag_sim_mapdata=args.sim_data,
+        # interval=refresh_delay,
+        # n_value=datachunck,
+        flag_sim_measurment=args.sim_measu,
+        # Nscan=Nscan,
+        shift=args.scannershift,
     )
 
-    t4 = time()
+    # t4 = time()
 
-    print(f"Total time : {t4-t0}s")
-    print(f"Time stamps :")
-    print(t1 - t0)
-    print(t2 - t1)
-    print(t3 - t2)
-    print(t4 - t3)
+    # print(f"Total time : {t4-t0}s")
+    # print(f"Time stamps :")
+    # print(t1 - t0)
+    # print(t2 - t1)
+    # print(t3 - t2)
+    # print(t4 - t3)
