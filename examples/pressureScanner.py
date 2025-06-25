@@ -1,12 +1,3 @@
-from pathlib import Path
-import sys
-
-
-paths_lib = [Path.home() / "Documents" / "measpy"]
-paths_lib = [Path.home() / "Dev" / "measpy"]
-
-_ = [sys.path.insert(0, str(p)) for p in paths_lib]
-import measpy as mp
 from measpy._tools import _add_N_data
 from measpy.signal import Signal, SignalType
 
