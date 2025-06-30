@@ -1,7 +1,7 @@
-from measpy._tools import _add_N_data
 from measpy.signal import Signal, SignalType
+from measpy._tools import _add_N_data
 
-# from measpy.measurement import Measurement
+from measpy.measurement import Measurement
 from measpy.ni import ni_run_measurement, ni_callback_measurement
 from measpy._plot_tools import plot_data_from_queue
 import numpy as np
@@ -27,10 +27,6 @@ logger = logging.getLogger(__name__)
 
 Signalname = "end_sig"
 
-# Direct plot
-# refresh_delay = 0.2
-# plotbuffersize = 500
-
 argsdict = {
     "N_sensor": {
         "short": "N",
@@ -46,7 +42,7 @@ argsdict = {
     },
     "settling_time_micro": {
         "short": "ta",
-        "help": "Time (µs) to wait after change channel to start take into account data",
+        "help": "Time (µs) to wait after channel change to start taking into account data (default: %(default)f)",
         "default": 25,
         "type": float,
     },
@@ -58,13 +54,13 @@ argsdict = {
     },
     "dur": {
         "short": "d",
-        "help": "Duration of measurment  (default: %(default)f)",
+        "help": "Duration in second of the measurment (default: %(default)f)",
         "default": 120,
         "type": float,
     },
     "info": {
         "short": "i",
-        "help": "Description of the experiment",
+        "help": "Description of the experiment (default: %(default)s)",
         "default": "Pressure scanner measurment",
         "type": str,
     },
@@ -82,7 +78,7 @@ argsdict = {
     },
     "scannershift": {
         "short": "Sc",
-        "help": "Shift of simulated measurment in µs",
+        "help": "Datashift of simulated measurment in µs (default: %(default)f)",
         "default": 20,
         "type": float,
     },
@@ -143,16 +139,6 @@ def dispatch(q_in: Queue, qs_out: list[Queue], timeout: float | int):
         q_out.put(None)
 
 
-# def calc_fs(fb, N_average, N_sensor):
-#     channel_time_micro = 10**6 / (fb * N_sensor)
-#     fs = 10**6 * (N_average) / (channel_time_micro - settling_time_micro)
-#     if fs > 1_000_000:
-#         raise ValueError(f"Card frequency {fs} is too high")
-
-#     logger.info(f"Ni card frequency set at {fs}")
-#     return fs
-
-
 def scaleAddresses(
     addr: list, fb: int, N_average: int, settling_time_micro: float
 ) -> tuple[list, int]:
@@ -182,6 +168,8 @@ def scaleAddresses(
         addr[it * nbIt : it * nbIt + 1] *= nbIt
     # return addr,fs/(nbAdr*nbIt)
     fs = nbAdr * nbIt * fb
+    #fs is choosen such as the number of point to stay
+    #at each channel is the settling time + N_average
     logger.info(f"Ni card frequency set at {fs}")
     return addr, fs, nbIt
 
@@ -539,9 +527,9 @@ class PressureScanner:
         if "out_map" in kwargs.keys():
             _out_map.extend(kwargs["out_map"])
 
-        in_sig = [mp.Signal(fs=self.fs, desc="Empty sigal")]
+        in_sig = [Signal(fs=self.fs, desc="Empty sigal")]
 
-        self.M = mp.Measurement(
+        self.M = Measurement(
             device_type="ni",
             out_sig=_out_sig,
             out_map=_out_map,
@@ -629,7 +617,7 @@ class PressureScanner:
         dur = vals.size
         if Nshift > self.diff:
             logger.info(
-                f"{100*(Nshift-self.diff)/self.nbIt} % of datapoints are mixed"
+                f"{100*(Nshift-self.diff)/(self.nbIt-self.diff)} % of datapoints are mixed"
             )
         else:
             logger.info("No datapoint are mixed")
@@ -862,7 +850,7 @@ class PressureScanner:
         # n_value: int = 50,  # runFillMappedQueue
         flag_sim_measurment: bool = False,  # runFillMappedQueue
         # Nscan: int = 1,
-        shift: int = 0,
+        shift: float = 0,
     ):
         """
         Start a measurement and create output management depending on the parameters set.
@@ -960,8 +948,8 @@ if __name__ == "__main__":
     if args.verbose:
         level = logging.DEBUG
     logging.basicConfig(level=level)
-    args.sim_measu = True
-    args.plot = True
+    # args.sim_measu = True
+    # args.plot = True
     # device_name = "dev"
     # print("start")
 
