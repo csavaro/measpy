@@ -2045,6 +2045,7 @@ class Signal:
 
     def create_hdf5dataset(self,
                            hdf5_object,
+                           datatranspose,
                            chunck_size=0,
                            dataset_name="in_sigs",
                            data_type=None,
@@ -2109,7 +2110,8 @@ class Signal:
                 h5file_write_from_queue,
                 filename=H5file.filename,
                 dataset_name=dataset_name,
-                Channel_map = Channel_map,
+                Channel_map=Channel_map,
+                datatranspose=datatranspose,
                 )
 
 
