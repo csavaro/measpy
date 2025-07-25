@@ -347,7 +347,7 @@ class plot_data_from_queue(ABC):
 
 class basic_plot(plot_data_from_queue):
     """
-    Plot data as value (Volt) as function of time supports multichannel data, plot all data in the same axe
+    Plot data as value (Volt) as function of time; supports multichannel data, plot all data in the same axe
     Stop button trigger self.stop_event and should stop the measurment thread
     Save button trigger self.save_event and should start the save data thread
 
@@ -380,8 +380,8 @@ class basic_plot(plot_data_from_queue):
         ]
         # define lines : list of line object that will be updated
         self.lines = linet
-
-        # displace nans to the right for first plot
+        plt.show(block=False)
+        # to displace nans to the right for begining of plot
         self.istimedata = [True] * self.nchannel
 
         # Define a Stop button
@@ -425,8 +425,6 @@ class basic_plot(plot_data_from_queue):
 
         # set Stop event to stop measurment when the figure is closed.
         self.fig.canvas.mpl_connect("close_event", fstop)
-        # this metho return list of animated artist
-        return [self.std, self.mean]
 
     def rescaling(self):
         # defines method that rescale axis when a flag is set to True
