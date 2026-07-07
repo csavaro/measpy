@@ -146,7 +146,7 @@ class ni_callback_measurement:
             M.in_device = system.devices[0].name
 
         self.Device = nidaqmx.system.device.Device(M.in_device)
-        self.self_calib() #launch a self_calibration if current temperature more than 1°C difference with last self_calib temperature
+        self.self_calib() #check if self_calibration needed : if current temperature more than 1°C difference with last self_calib temperature
         if hasattr(M, "in_range"):
             inr = M.in_range is not None
         else:
@@ -456,11 +456,12 @@ class ni_callback_measurement:
     def self_calib(self):
         if self.Device.self_cal_supported:
             if np.abs(self.Device.self_cal_last_temp-self.Device.cal_dev_temp)>1:
-                print(f"Current température : {round(self.Device.cal_dev_temp,1)}°C\n",
-                      f"Last self calibration température : {round(self.Device.self_cal_last_temp,1)}°C\n",
-                      "launching self calibration...")
-                self.Device.self_cal()
-                print("done")
+                print(f"Warning : Current temperature : {round(self.Device.cal_dev_temp,1)}°C\n",
+                      f"Last self calibration temperature : {round(self.Device.self_cal_last_temp,1)}°C\n",
+                      "a self calibration may be needed")
+                #       "launching self calibration...")
+                # self.Device.self_cal()
+                # print("done")
 
 
     @property
