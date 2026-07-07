@@ -18,7 +18,7 @@ from threading import Event
 import numpy as np
 import h5py
 
-from ._tools import siglist_to_array, t_min, _add_N_data, H5file_valid
+from ._tools import siglist_to_array, t_min, _add_N_data, H5file_valid, to_list
 from .signal import Signal, SignalType
 
 def _n_to_ain(n):
@@ -145,12 +145,14 @@ class ni_callback_measurement:
             )
             M.in_device = system.devices[0].name
 
+        self.Device = nidaqmx.system.device.Device(M.in_device)
+        self.self_calib() #launch a self_calibration if current temperature more than 1°C difference with last self_calib temperature
         if hasattr(M, "in_range"):
             inr = M.in_range is not None
         else:
             inr = False
         if not (inr):
-            val = nidaqmx.system.device.Device(M.in_device).ai_voltage_rngs[-1]
+            val = self.Device.ai_voltage_rngs[-1]
             print(
                 "Warning: no input range specified, changing to the max value of "
                 + M.in_device
@@ -179,7 +181,7 @@ class ni_callback_measurement:
             else:
                 outr = False
             if not (outr):
-                val = nidaqmx.system.device.Device(M.out_device).ao_voltage_rngs[
+                val = self.Device.ao_voltage_rngs[
                     -1
                 ]
                 print(
@@ -214,6 +216,14 @@ class ni_callback_measurement:
                     sample_mode=niconst.AcquisitionType.CONTINUOUS,
                 )
 
+                if self.M.fs!= self.intask.timing.samp_clk_rate:
+                    print(f"Warning : sampling frequency changed from {self.M.fs} "
+                          "to {self.intask.timing.samp_clk_rate} Hz")
+                    self.M.fs = self.intask.timing.samp_clk_rate
+
+                self.M.fc = self.intask.timing.samp_clk_timebase_rate # internal clock rate
+                self.M.n_pulse = self.intask.timing.samp_clk_timebase_div  #fc/fs is integer
+
                 for i, iepeval in enumerate(self.M.in_iepe):
                     if iepeval:
                         self.intask.ai_channels[i].ai_excit_val = 0.002
@@ -224,6 +234,7 @@ class ni_callback_measurement:
             self.reader = stream_readers.AnalogMultiChannelReader(
                 self.intask.in_stream
             )
+
 
             # Set up the write tasks
             if self.M.out_sig is not None:
@@ -334,6 +345,15 @@ class ni_callback_measurement:
         self.now = datetime.now()
         self.M.date = self.now.strftime("%Y-%m-%d")
         self.M.time = self.now.strftime("%H:%M:%S")
+        self.M.adc_temp = self.Device.cal_dev_temp #current temperature of the card
+        if self.M.ni_in_sig_bit_resolution is None:
+            self.M.ni_in_sig_bit_resolution = self.ai_channels_bits_resolution
+        else:
+            self.M.ni_in_sig_bit_resolution=to_list(self.M.ni_in_sig_bit_resolution,self.Nchannel)
+            if self.M.ni_in_sig_bit_resolution!=self.ai_channels_bits_resolution:
+                raise ValueError(f"Expected resolution {self.M.ni_in_sig_bit_resolution} "
+                                 f"different from actual channel resolution {self.ai_channels_bits_resolution}")
+        self.M.ni_in_sig_range = self.ai_channels_range
         if not self.in_multichannel:
             for s in self.M.in_sig:
                 s.t0 = self.tmin
@@ -432,6 +452,16 @@ class ni_callback_measurement:
             self.n_values, None
         )
         self.set_callback(callback_method, n_values)
+
+    def self_calib(self):
+        if self.Device.self_cal_supported:
+            if np.abs(self.Device.self_cal_last_temp-self.Device.cal_dev_temp)>1:
+                print(f"Current température : {round(self.Device.cal_dev_temp,1)}°C\n",
+                      f"Last self calibration température : {round(self.Device.self_cal_last_temp,1)}°C\n",
+                      "launching self calibration...")
+                self.Device.self_cal()
+                print("done")
+
 
     @property
     def ai_channels_range(self):
