@@ -218,7 +218,7 @@ class ni_callback_measurement:
 
                 if self.M.fs!= self.intask.timing.samp_clk_rate:
                     print(f"Warning : sampling frequency changed from {self.M.fs} "
-                          "to {self.intask.timing.samp_clk_rate} Hz")
+                          f"to {self.intask.timing.samp_clk_rate} Hz")
                     self.M.fs = self.intask.timing.samp_clk_rate
 
                 self.M.fc = self.intask.timing.samp_clk_timebase_rate # internal clock rate
@@ -503,6 +503,32 @@ def ni_run_synced_measurement(M,in_chan=0,out_chan=0):
     ni_run_measurement(M)
     d = M.sync_render(in_chan=in_chan,out_chan=out_chan)
     return d
+
+def ni_get_true_fs(M):
+    system = nidaqmx.system.System.local()
+    if M.in_device == "":
+        print(
+            "Warning: no output device specified, changing to "
+            + system.devices[0].name
+        )
+        M.in_device = system.devices[0].name
+    intask = nidaqmx.Task()
+    intask.ai_channels.add_ai_voltage_chan(M.in_device + "/" + _n_to_ain(M.in_map[0]))
+    intask.timing.cfg_samp_clk_timing(
+        rate=M.fs,
+        sample_mode=niconst.AcquisitionType.CONTINUOUS,
+    )
+    if M.fs!= intask.timing.samp_clk_rate:
+        print(f"Warning : sampling frequency changed from {M.fs} "
+              f"to {intask.timing.samp_clk_rate} Hz")
+        M.fs = intask.timing.samp_clk_rate
+    else:
+        print("No change to fs needed")
+
+    M.fc = intask.timing.samp_clk_timebase_rate # internal clock rate
+    M.n_pulse =intask.timing.samp_clk_timebase_div  #fc/fs is integer
+    intask.close()
+
 
 def ni_get_devices():
     """
