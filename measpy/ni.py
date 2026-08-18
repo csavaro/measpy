@@ -140,19 +140,19 @@ class ni_callback_measurement:
             M.device_type = "ni"
         if M.in_device == "":
             print(
-                "Warning: no output device specified, changing to "
+                "Warning: no input device specified, changing to "
                 + system.devices[0].name
             )
             M.in_device = system.devices[0].name
 
-        self.Device = nidaqmx.system.device.Device(M.in_device)
-        self.self_calib() #check if self_calibration needed : if current temperature more than 1°C difference with last self_calib temperature
+        self.in_Device = nidaqmx.system.device.Device(M.in_device)
+        self_calib(self.in_Device) #check if self_calibration needed
         if hasattr(M, "in_range"):
             inr = M.in_range is not None
         else:
             inr = False
         if not (inr):
-            val = self.Device.ai_voltage_rngs[-1]
+            val = self.in_Device.ai_voltage_rngs[-1]
             print(
                 "Warning: no input range specified, changing to the max value of "
                 + M.in_device
@@ -173,6 +173,8 @@ class ni_callback_measurement:
                     + system.devices[0].name
                 )
                 M.out_device = system.devices[0].name
+            self.out_Device = nidaqmx.system.device.Device(M.out_device)
+            self_calib(self.out_Device)
             if hasattr(M, "out_range"):
                 if M.out_range is None:
                     outr = False
@@ -181,7 +183,7 @@ class ni_callback_measurement:
             else:
                 outr = False
             if not (outr):
-                val = self.Device.ao_voltage_rngs[
+                val = self.out_Device.ao_voltage_rngs[
                     -1
                 ]
                 print(
@@ -211,18 +213,7 @@ class ni_callback_measurement:
                         max_val=self.M.in_range[i],
                         units=niconst.VoltageUnits.VOLTS,
                     )
-                self.intask.timing.cfg_samp_clk_timing(
-                    rate=self.M.fs,
-                    sample_mode=niconst.AcquisitionType.CONTINUOUS,
-                )
 
-                if self.M.fs!= self.intask.timing.samp_clk_rate:
-                    print(f"Warning : sampling frequency changed from {self.M.fs} "
-                          f"to {self.intask.timing.samp_clk_rate} Hz")
-                    self.M.fs = self.intask.timing.samp_clk_rate
-
-                self.M.fc = self.intask.timing.samp_clk_timebase_rate # internal clock rate
-                self.M.n_pulse = self.intask.timing.samp_clk_timebase_div  #fc/fs is integer
 
                 for i, iepeval in enumerate(self.M.in_iepe):
                     if iepeval:
@@ -234,7 +225,6 @@ class ni_callback_measurement:
             self.reader = stream_readers.AnalogMultiChannelReader(
                 self.intask.in_stream
             )
-
 
             # Set up the write tasks
             if self.M.out_sig is not None:
@@ -256,64 +246,8 @@ class ni_callback_measurement:
                             lines=self.M.out_device + "/" + _n_to_don(n),
                             line_grouping=niconst.LineGrouping.CHAN_FOR_ALL_LINES
                         )
-
-                if self.M.in_device.startswith("myDAQ") and self.M.out_sig.type == SignalType.ANALOG:
-                    # If the device is a myDAQ card, we keep most default values
-                    # The myDAQ devices are set up separately because
-                    # there is no error messages when setting up properties
-                    # that are not supported, and the acquisition then fails
-                    print("This is a NI my DAQ device")
-                    self.outtask.timing.cfg_samp_clk_timing(
-                        rate=self.M.fs,
-                        sample_mode=niconst.AcquisitionType.CONTINUOUS,
-                        samps_per_chan=self.nsamps,
-                    )
-                else:
-                    try:
-                        # We first try to use analog input sample clock as output clock
-                        self.outtask.timing.cfg_samp_clk_timing(
-                            rate=self.M.fs,
-                            source="/"
-                            + self.M.in_device
-                            + "/ai/SampleClock",  # "OnboardClock",
-                            sample_mode=niconst.AcquisitionType.CONTINUOUS,
-                            samps_per_chan=self.nsamps,
-                        )
-                        print(
-                            "Use of /"
-                            + self.M.in_device
-                            + "/ai/SampleClock as output clock : success !"
-                        )
-                    except:
-                        # If it fails, use defaults
-                        # Then the in/out are not synchronized
-                        # There is hence the possibility to use one analog input
-                        # to do the in/out sync (io_sync=input channel number)
-                        print(
-                            'Choosing "'
-                            + "/"
-                            + self.M.in_device
-                            + '/ai/SampleClock" as clock source causes trouble, let\'s try "OnboardClock" '
-                        )
-                        self.outtask.timing.cfg_samp_clk_timing(
-                            rate=self.M.fs,
-                            sample_mode=niconst.AcquisitionType.CONTINUOUS,
-                            samps_per_chan=self.nsamps,
-                        )
-
-                print("values: ",self.outx[:, 0])
-                if len(self.M.out_map) == 1:
-                    if self.M.out_sig[0].type == SignalType.DIGITAL:
-                        self.outtask.write(list(map(int,map(round,self.outx[:, 0]))), auto_start=False) 
-                    else:
-                        self.outtask.write(self.outx[:, 0], auto_start=False)
-                else:
-                    # If there are more than one output channel,
-                    # the outx.T array argument produces an error.
-                    # Temporary dirty fix consists of converting
-                    # the array to a list.
-                    # TODO: Find better solution
-                    self.outtask.write((self.outx.T).tolist(), auto_start=False)
+            #set_up timing
+            self.timing()
         except Exception as e:
             self.__exit__(type(e), e.args, e)
             raise e
@@ -326,6 +260,123 @@ class ni_callback_measurement:
         if self.M.out_sig != None:
             self.outtask.close()
         print("ni tasks closed")
+
+    def timing(self):
+        if self.M.in_sig is not None and self.M.out_sig is not None and self.M.in_device !=self.M.out_device:
+            if  hasattr(self.M, "ref_device") and hasattr(self.M, "clock_terminal"):
+                if self.M.ref_device == "in":
+                    self.intask.timing.cfg_samp_clk_timing(
+                        rate=self.M.fs,
+                        sample_mode=niconst.AcquisitionType.CONTINUOUS,
+                    )
+                    self.check_fs(self.intask.timing)
+                    self.source_terminal = "/" + self.M.in_device+ "/ai/SampleClock"
+                    self.destination_terminal = "/" + self.M.in_device+ "/"+self.M.clock_terminal[0]
+                    nidaqmx.system.system.System().connect_terms(
+                        source_terminal=self.source_terminal,
+                        destination_terminal=self.destination_terminal,
+                    )
+                    self.outtask.timing.cfg_samp_clk_timing(
+                            rate = self.M.fs,
+                            source = "/" + self.M.out_device+ "/"+self.M.clock_terminal[1],
+                            sample_mode=niconst.AcquisitionType.CONTINUOUS,
+                            samps_per_chan=self.nsamps,
+                        )
+                elif self.M.ref_device == "out":
+                    self.outtask.timing.cfg_samp_clk_timing(
+                        rate=self.M.fs,
+                        sample_mode=niconst.AcquisitionType.CONTINUOUS,
+                    )
+                    self.check_fs(self.outtask.timing)
+                    self.source_terminal = "/" + self.M.out_device+ "/ao/SampleClock"
+                    self.destination_terminal = "/" + self.M.out_device+ "/"+self.M.clock_terminal[0]
+                    nidaqmx.system.system.System().connect_terms(
+                        source_terminal=self.source_terminal,
+                        destination_terminal=self.destination_terminal,
+                    )
+                    self.intask.timing.cfg_samp_clk_timing(
+                            rate = self.M.fs,
+                            source = "/" + self.M.in_device+ "/"+self.M.clock_terminal[1],
+                            sample_mode=niconst.AcquisitionType.CONTINUOUS,
+                            samps_per_chan=self.nsamps,
+                        )
+                #Delay needed for synchronisation (hardware delay)
+                self.intask.timing.delay_from_samp_clk_delay_units = (
+                       niconst.DigitalWidthUnits.SECONDS
+                )
+                if not hasattr(self.M, "intask_delay"):
+                    self.M.intask_delay=10e-6
+                self.intask.timing.delay_from_samp_clk_delay =  self.M.intask_delay
+                return
+            else:
+                print("Warning : Input and output will be based on separate clock sources")
+        if self.M.in_sig is not None:
+            self.intask.timing.cfg_samp_clk_timing(
+                rate=self.M.fs,
+                sample_mode=niconst.AcquisitionType.CONTINUOUS,
+            )
+
+            self.check_fs(self.intask.timing)
+        if self.M.out_sig is not None:
+            if self.M.in_device.startswith("myDAQ") and self.M.out_sig.type == SignalType.ANALOG:
+                # If the device is a myDAQ card, we keep most default values
+                # The myDAQ devices are set up separately because
+                # there is no error messages when setting up properties
+                # that are not supported, and the acquisition then fails
+                print("This is a NI my DAQ device")
+                self.outtask.timing.cfg_samp_clk_timing(
+                    rate=self.M.fs,
+                    sample_mode=niconst.AcquisitionType.CONTINUOUS,
+                    samps_per_chan=self.nsamps,
+                )
+            else:
+                try:
+                    # We first try to use analog input sample clock as output clock
+                    self.outtask.timing.cfg_samp_clk_timing(
+                        rate=self.M.fs,
+                        source="/"
+                        + self.M.in_device
+                        + "/ai/SampleClock",  # "OnboardClock",
+                        sample_mode=niconst.AcquisitionType.CONTINUOUS,
+                        samps_per_chan=self.nsamps,
+                    )
+                    print(
+                        "Use of /"
+                        + self.M.in_device
+                        + "/ai/SampleClock as output clock : success !"
+                    )
+                except:
+                    # If it fails, use defaults
+                    # Then the in/out are not synchronized
+                    # There is hence the possibility to use one analog input
+                    # to do the in/out sync (io_sync=input channel number)
+                    print(
+                        'Choosing "'
+                        + "/"
+                        + self.M.in_device
+                        + '/ai/SampleClock" as clock source causes trouble, let\'s try "OnboardClock" '
+                    )
+                    self.outtask.timing.cfg_samp_clk_timing(
+                        rate=self.M.fs,
+                        sample_mode=niconst.AcquisitionType.CONTINUOUS,
+                        samps_per_chan=self.nsamps,
+                    )
+
+
+    def dicsconnect_clock(self):
+        nidaqmx.system.system.System().disconnect_terms(
+            source_terminal=self.source_terminal,
+            destination_terminal=self.destination_terminal,
+        )
+
+    def check_fs(self, timing):
+        if self.M.fs!= timing.samp_clk_rate:
+            print(f"Warning : sampling frequency changed from {self.M.fs} "
+                  f"to {timing.samp_clk_rate} Hz")
+            self.M.fs = timing.samp_clk_rate
+        self.M.fc = timing.samp_clk_timebase_rate # internal clock rate
+        self.M.n_pulse = timing.samp_clk_timebase_div  #fc/fs is integer
+
 
     def run(self, stop=Event(), pause=Event(), duration="default"):
         """
@@ -345,7 +396,22 @@ class ni_callback_measurement:
         self.now = datetime.now()
         self.M.date = self.now.strftime("%Y-%m-%d")
         self.M.time = self.now.strftime("%H:%M:%S")
-        self.M.adc_temp = self.Device.cal_dev_temp #current temperature of the card
+        self.M.in_adc_temp = self.in_Device.cal_dev_temp #current temperature of the input card
+        if self.M.out_sig != None:
+            print("values: ",self.outx[:, 0])
+            if len(self.M.out_map) == 1:
+                if self.M.out_sig[0].type == SignalType.DIGITAL:
+                    self.outtask.write(list(map(int,map(round,self.outx[:, 0]))), auto_start=False)
+                else:
+                    self.outtask.write(self.outx[:, 0], auto_start=False)
+            else:
+                # If there are more than one output channel,
+                # the outx.T array argument produces an error.
+                # Temporary dirty fix consists of converting
+                # the array to a list.
+                # TODO: Find better solution
+                self.outtask.write((self.outx.T).tolist(), auto_start=False)
+            self.M.out_adc_temp = self.out_Device.cal_dev_temp #current temperature of the output card
         if self.M.ni_in_sig_bit_resolution is None:
             self.M.ni_in_sig_bit_resolution = self.ai_channels_bits_resolution
         else:
@@ -369,10 +435,18 @@ class ni_callback_measurement:
             numBuffersToCapture = float("inf")
         self.buffer_captured = 0
         time_to_fill_buffer = self.n_values / self.M.fs
-        if self.M.out_sig != None:
-            self.outtask.start()  # Start the write task first, waiting for the analog input sample clock
-        if self.M.in_sig != None:
-            self.intask.start()
+        if hasattr(self.M, "ref_device"):
+            if self.M.ref_device=="out":
+                self.intask.start()
+                self.outtask.start()
+            else:
+                self.outtask.start()
+                self.intask.start()
+        else:
+            if self.M.out_sig != None:
+                self.outtask.start()  # Start the write task first, waiting for the analog input sample clock
+            if self.M.in_sig != None:
+                self.intask.start()
         try:
             print("Start measurement")
             while (
@@ -387,6 +461,7 @@ class ni_callback_measurement:
         else:
             self.stop()
             print("measurment done")
+            self.dicsconnect_clock()
 
     def stop(self):
         #stop all task
@@ -453,16 +528,6 @@ class ni_callback_measurement:
         )
         self.set_callback(callback_method, n_values)
 
-    def self_calib(self):
-        if self.Device.self_cal_supported:
-            if np.abs(self.Device.self_cal_last_temp-self.Device.cal_dev_temp)>1:
-                print(f"Warning : Current temperature : {round(self.Device.cal_dev_temp,1)}°C\n",
-                      f"Last self calibration temperature : {round(self.Device.self_cal_last_temp,1)}°C\n",
-                      "a self calibration may be needed")
-                #       "launching self calibration...")
-                # self.Device.self_cal()
-                # print("done")
-
 
     @property
     def ai_channels_range(self):
@@ -504,31 +569,38 @@ def ni_run_synced_measurement(M,in_chan=0,out_chan=0):
     d = M.sync_render(in_chan=in_chan,out_chan=out_chan)
     return d
 
-def ni_get_true_fs(M):
+def ni_get_true_fs(fs,device_name):
     system = nidaqmx.system.System.local()
-    if M.in_device == "":
+    if device_name == "":
         print(
-            "Warning: no output device specified, changing to "
+            "Warning: no device specified, changing to "
             + system.devices[0].name
         )
-        M.in_device = system.devices[0].name
+        device_name = system.devices[0].name
     intask = nidaqmx.Task()
-    intask.ai_channels.add_ai_voltage_chan(M.in_device + "/" + _n_to_ain(M.in_map[0]))
+    intask.ai_channels.add_ai_voltage_chan(device_name + "/" + _n_to_ain(1))
     intask.timing.cfg_samp_clk_timing(
-        rate=M.fs,
+        rate=fs,
         sample_mode=niconst.AcquisitionType.CONTINUOUS,
     )
-    if M.fs!= intask.timing.samp_clk_rate:
-        print(f"Warning : sampling frequency changed from {M.fs} "
+    if fs!= intask.timing.samp_clk_rate:
+        print(f"Warning : sampling frequency changed from {fs} "
               f"to {intask.timing.samp_clk_rate} Hz")
-        M.fs = intask.timing.samp_clk_rate
+        fs = intask.timing.samp_clk_rate
     else:
         print("No change to fs needed")
-
-    M.fc = intask.timing.samp_clk_timebase_rate # internal clock rate
-    M.n_pulse =intask.timing.samp_clk_timebase_div  #fc/fs is integer
     intask.close()
+    return fs
 
+def self_calib(device):
+    if device.self_cal_supported:
+        if np.abs(device.self_cal_last_temp-device.cal_dev_temp)>1:
+            print(f"Warning : Current temperature of {device.name} = {round(device.cal_dev_temp,1)}°C\n",
+                  f"Last self calibration temperature = {round(device.self_cal_last_temp,1)}°C\n",
+                  "a self calibration may be needed")
+            #       "launching self calibration...")
+            # self.in_Device.self_cal()
+            # print("done")
 
 def ni_get_devices():
     """
