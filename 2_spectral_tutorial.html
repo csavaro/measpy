@@ -20,7 +20,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="copyright" title="Copyright" href="copyright.html" />
-    <link rel="next" title="measpy package" href="measpy.html" />
+    <link rel="next" title="Tutorial 3: The Measurement class" href="3_measurements.html" />
     <link rel="prev" title="Tutorial 1 : The Signal class" href="1_signal_tutorial.html" /> 
 </head>
 
@@ -53,6 +53,9 @@
 <li class="toctree-l2"><a class="reference internal" href="#units">Units</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="3_measurements.html">Measurement tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="4_spectrum_smoothing_and_weighting.html">Smoothing and weighting tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="5_synced_measurement.html">Synchronized measurement tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="measpy.html">measpy package</a></li>
 </ul>
 
@@ -95,7 +98,7 @@
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1">#This is here in case we want to use the local measy directory</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
-<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;..&quot;</span><span class="p">)</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">".."</span><span class="p">)</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">measpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -109,7 +112,7 @@
 </pre></div>
 </div>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">measpy</span><span class="o">.</span><span class="n">Signal</span><span class="p">(</span><span class="n">fs</span><span class="o">=</span><span class="mi">44100</span><span class="p">,</span>
-<span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Noise 0-22050Hz&#39;</span><span class="p">,</span>
+<span class="n">desc</span><span class="o">=</span><span class="s1">'Noise 0-22050Hz'</span><span class="p">,</span>
 <span class="n">freq_min</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 <span class="n">freq_max</span><span class="o">=</span><span class="mi">22050</span><span class="p">,</span>
 <span class="n">_rawvalues</span><span class="o">=</span><span class="p">[</span> <span class="mf">2.63749506</span>  <span class="mf">1.21468672</span> <span class="o">-</span><span class="mf">0.39634116</span> <span class="o">...</span>  <span class="mf">0.90318963</span>  <span class="mf">1.48549855</span>
@@ -120,13 +123,13 @@
 
 
 
-<span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Time (s)&#39;</span><span class="o">&gt;</span>
+<span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Time (s)'</span><span class="o">&gt;</span>
 </pre></div>
 </div>
 <p><img alt="png" src="_images/2_spectral_tutorial_3_2.png" /></p>
 <p>Let us now filter this noise using the method <code class="docutils literal notranslate"><span class="pre">Signal.iir</span></code>, which is basically a wrapper function around <code class="docutils literal notranslate"><span class="pre">scipy.signal.filter.iirfilter</span></code> and <code class="docutils literal notranslate"><span class="pre">scipy.signal.filter.sosfilt</span></code>.</p>
 <p>Below, the white noise is filtered above 1000Hz using a 6th-order butterworth filter (default type)</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">noisef</span> <span class="o">=</span> <span class="n">noise</span><span class="o">.</span><span class="n">iir</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">Wn</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span><span class="n">btype</span><span class="o">=</span><span class="s1">&#39;lowpass&#39;</span><span class="p">,</span><span class="n">ftype</span><span class="o">=</span><span class="s1">&#39;butter&#39;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">noisef</span> <span class="o">=</span> <span class="n">noise</span><span class="o">.</span><span class="n">iir</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">Wn</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span><span class="n">btype</span><span class="o">=</span><span class="s1">'lowpass'</span><span class="p">,</span><span class="n">ftype</span><span class="o">=</span><span class="s1">'butter'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>We now calculate and plot the FFT</p>
@@ -141,12 +144,12 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">measpy</span><span class="o">.</span><span class="n">Spectral</span><span class="p">(</span><span class="n">_values</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mf">4.15815877e+00</span><span class="o">+</span><span class="mf">0.00000000e+00</span><span class="n">j</span>  <span class="mf">8.68094334e+02</span><span class="o">+</span><span class="mf">3.48103038e+02</span><span class="n">j</span>
  <span class="o">-</span><span class="mf">9.17516659e+02</span><span class="o">-</span><span class="mf">2.18577396e+02</span><span class="n">j</span> <span class="o">...</span> <span class="o">-</span><span class="mf">1.18209042e-01</span><span class="o">+</span><span class="mf">9.07961848e-07</span><span class="n">j</span>
  <span class="o">-</span><span class="mf">1.18209042e-01</span><span class="o">+</span><span class="mf">4.54029362e-07</span><span class="n">j</span> <span class="o">-</span><span class="mf">1.18209042e-01</span><span class="o">+</span><span class="mf">0.00000000e+00</span><span class="n">j</span><span class="p">],</span>
-<span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Noise 0-22050Hz</span>
+<span class="n">desc</span><span class="o">=</span><span class="s1">'Noise 0-22050Hz</span>
  <span class="o">--&gt;</span><span class="n">filtered</span>
- <span class="o">--&gt;</span><span class="n">RFFT</span><span class="s1">&#39;,</span>
+ <span class="o">--&gt;</span><span class="n">RFFT</span><span class="s1">',</span>
 <span class="n">fs</span><span class="o">=</span><span class="mi">44100</span><span class="p">,</span>
 <span class="n">full</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<span class="n">norm</span><span class="o">=</span><span class="s1">&#39;backward&#39;</span><span class="p">,</span>
+<span class="n">norm</span><span class="o">=</span><span class="s1">'backward'</span><span class="p">,</span>
 <span class="n">odd</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span>
 
@@ -154,8 +157,8 @@
 
 
 
-<span class="n">array</span><span class="p">([</span><span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Freq (Hz)&#39;</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;20 Log |H|&#39;</span><span class="o">&gt;</span><span class="p">,</span>
-       <span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Freq (Hz)&#39;</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;Phase&#39;</span><span class="o">&gt;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+<span class="n">array</span><span class="p">([</span><span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Freq (Hz)'</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">'20 Log |H|'</span><span class="o">&gt;</span><span class="p">,</span>
+       <span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Freq (Hz)'</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">'Phase'</span><span class="o">&gt;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
 </pre></div>
 </div>
 <p><img alt="png" src="_images/2_spectral_tutorial_7_2.png" /></p>
@@ -163,22 +166,22 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">noisesp</span><span class="o">.</span><span class="n">irfft</span><span class="p">()</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
 </pre></div>
 </div>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Time (s)&#39;</span><span class="o">&gt;</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Time (s)'</span><span class="o">&gt;</span>
 </pre></div>
 </div>
 <p><img alt="png" src="_images/2_spectral_tutorial_9_1.png" /></p>
 <p>To compute the frequency response of the filter, we can use Welch’s method for transfer function estimation.</p>
 <p>Let us do this and compare with the analytical frequency response given by <code class="docutils literal notranslate"><span class="pre">scipy.signal.sosfreqz</span></code></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sp</span> <span class="o">=</span> <span class="n">noisef</span><span class="o">.</span><span class="n">tfe_welch</span><span class="p">(</span><span class="n">noise</span><span class="p">,</span><span class="n">nperseg</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">14</span><span class="p">)</span>
-<span class="n">ax</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;Welch&#39;</span><span class="p">)</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">'Welch'</span><span class="p">)</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.signal</span><span class="w"> </span><span class="kn">import</span> <span class="n">iirfilter</span><span class="p">,</span> <span class="n">sosfreqz</span>
 
-<span class="n">sos</span> <span class="o">=</span> <span class="n">iirfilter</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">Wn</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span><span class="n">btype</span><span class="o">=</span><span class="s1">&#39;lowpass&#39;</span><span class="p">,</span><span class="n">fs</span><span class="o">=</span><span class="n">noise</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span><span class="n">output</span><span class="o">=</span><span class="s1">&#39;sos&#39;</span><span class="p">,</span><span class="n">ftype</span><span class="o">=</span><span class="s1">&#39;butter&#39;</span><span class="p">)</span>
+<span class="n">sos</span> <span class="o">=</span> <span class="n">iirfilter</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">Wn</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span><span class="n">btype</span><span class="o">=</span><span class="s1">'lowpass'</span><span class="p">,</span><span class="n">fs</span><span class="o">=</span><span class="n">noise</span><span class="o">.</span><span class="n">fs</span><span class="p">,</span><span class="n">output</span><span class="o">=</span><span class="s1">'sos'</span><span class="p">,</span><span class="n">ftype</span><span class="o">=</span><span class="s1">'butter'</span><span class="p">)</span>
 <span class="n">f</span><span class="p">,</span><span class="n">h</span> <span class="o">=</span> <span class="n">sosfreqz</span><span class="p">(</span><span class="n">sos</span><span class="p">,</span><span class="n">fs</span><span class="o">=</span><span class="n">noise</span><span class="o">.</span><span class="n">fs</span><span class="p">)</span>
-<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="mi">20</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">h</span><span class="p">)),</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;freqz&#39;</span><span class="p">,</span><span class="n">ls</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="mi">20</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">h</span><span class="p">)),</span><span class="n">label</span><span class="o">=</span><span class="s1">'freqz'</span><span class="p">,</span><span class="n">ls</span><span class="o">=</span><span class="s1">':'</span><span class="p">)</span>
 <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="mi">5</span><span class="p">,</span><span class="mi">20000</span><span class="p">])</span>
-<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">angle</span><span class="p">(</span><span class="n">h</span><span class="p">)),</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;freqz&#39;</span><span class="p">,</span><span class="n">ls</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="n">np</span><span class="o">.</span><span class="n">unwrap</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">angle</span><span class="p">(</span><span class="n">h</span><span class="p">)),</span><span class="n">label</span><span class="o">=</span><span class="s1">'freqz'</span><span class="p">,</span><span class="n">ls</span><span class="o">=</span><span class="s1">':'</span><span class="p">)</span>
 <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="mi">5</span><span class="p">,</span><span class="mi">20000</span><span class="p">])</span>
 <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 </pre></div>
@@ -192,19 +195,19 @@
 <p>Units are preserved during all the spectral/signal analyses.</p>
 <p>To illustrate this, let us create a noise signal, in Volts, and another one in Pascals, and do some Fourier analyses with these signals.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># voltage signal</span>
-<span class="n">voltage</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">Signal</span><span class="o">.</span><span class="n">noise</span><span class="p">(</span><span class="n">freq_min</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">freq_max</span><span class="o">=</span><span class="mi">22050</span><span class="p">,</span><span class="n">fs</span><span class="o">=</span><span class="mi">44100</span><span class="p">,</span><span class="n">dur</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">similar</span><span class="p">(</span><span class="n">unit</span><span class="o">=</span><span class="s1">&#39;V&#39;</span><span class="p">)</span>
+<span class="n">voltage</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">Signal</span><span class="o">.</span><span class="n">noise</span><span class="p">(</span><span class="n">freq_min</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span><span class="n">freq_max</span><span class="o">=</span><span class="mi">22050</span><span class="p">,</span><span class="n">fs</span><span class="o">=</span><span class="mi">44100</span><span class="p">,</span><span class="n">dur</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">similar</span><span class="p">(</span><span class="n">unit</span><span class="o">=</span><span class="s1">'V'</span><span class="p">)</span>
 
 <span class="c1"># Consider the pressure we have measured is linearly dependent</span>
 <span class="c1"># on the voltage. In this example we simply create the pressure signal</span>
 <span class="c1"># by arbitrarly filtering the voltage, an give the resulting signal</span>
 <span class="c1"># the dimension of Pascals (the similar function is very convenient for that)</span>
-<span class="n">pressure</span> <span class="o">=</span> <span class="n">voltage</span><span class="o">.</span><span class="n">iir</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">Wn</span><span class="o">=</span><span class="p">[</span><span class="mi">1000</span><span class="p">,</span><span class="mi">3000</span><span class="p">],</span><span class="n">btype</span><span class="o">=</span><span class="s1">&#39;bandpass&#39;</span><span class="p">,</span><span class="n">ftype</span><span class="o">=</span><span class="s1">&#39;butter&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">similar</span><span class="p">(</span><span class="n">unit</span><span class="o">=</span><span class="s1">&#39;Pa&#39;</span><span class="p">)</span>
+<span class="n">pressure</span> <span class="o">=</span> <span class="n">voltage</span><span class="o">.</span><span class="n">iir</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span><span class="n">Wn</span><span class="o">=</span><span class="p">[</span><span class="mi">1000</span><span class="p">,</span><span class="mi">3000</span><span class="p">],</span><span class="n">btype</span><span class="o">=</span><span class="s1">'bandpass'</span><span class="p">,</span><span class="n">ftype</span><span class="o">=</span><span class="s1">'butter'</span><span class="p">)</span><span class="o">.</span><span class="n">similar</span><span class="p">(</span><span class="n">unit</span><span class="o">=</span><span class="s1">'Pa'</span><span class="p">)</span>
 
 <span class="n">v_fft</span> <span class="o">=</span> <span class="n">voltage</span><span class="o">.</span><span class="n">rfft</span><span class="p">()</span>
 <span class="n">p_fft</span> <span class="o">=</span> <span class="n">pressure</span><span class="o">.</span><span class="n">rfft</span><span class="p">()</span>
 
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Unit of v_fft is &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">v_fft</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Unit of p_fft is &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">p_fft</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Unit of v_fft is "</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">v_fft</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Unit of p_fft is "</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">p_fft</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
 
 <span class="n">a</span><span class="o">=</span><span class="n">v_fft</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
 <span class="n">p_fft</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ax</span><span class="o">=</span><span class="n">a</span><span class="p">)</span>
@@ -256,30 +259,30 @@
 
 
 <span class="n">File</span> <span class="o">~/</span><span class="n">Documents</span><span class="o">/</span><span class="n">python</span><span class="o">/</span><span class="n">measpy</span><span class="o">/</span><span class="n">examples</span><span class="o">/../</span><span class="n">measpy</span><span class="o">/</span><span class="n">signal</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">2128</span><span class="p">,</span> <span class="ow">in</span> <span class="n">Spectral</span><span class="o">.</span><span class="fm">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-   <span class="mi">2122</span> <span class="s2">&quot;&quot;&quot;Add something to the spectrum</span>
+   <span class="mi">2122</span> <span class="s2">"""Add something to the spectrum</span>
 <span class="s2">   2123 </span>
 <span class="s2">   2124 :param other: Something to add to</span>
 <span class="s2">   2125 :type other: Spectral, float, int, scalar quantity</span>
-<span class="s2">   2126 &quot;&quot;&quot;</span>
+<span class="s2">   2126 """</span>
    <span class="mi">2127</span> <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="o">==</span> <span class="n">Spectral</span><span class="p">:</span>
 <span class="o">-&gt;</span> <span class="mi">2128</span>     <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
    <span class="mi">2130</span> <span class="k">if</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="o">==</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="o">==</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="o">==</span> <span class="nb">complex</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Number</span><span class="p">):</span>
-   <span class="mi">2131</span>     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Add with a number without unit, it is considered to be of same unit&#39;</span><span class="p">)</span>
+   <span class="mi">2131</span>     <span class="nb">print</span><span class="p">(</span><span class="s1">'Add with a number without unit, it is considered to be of same unit'</span><span class="p">)</span>
 
 
 <span class="n">File</span> <span class="o">~/</span><span class="n">Documents</span><span class="o">/</span><span class="n">python</span><span class="o">/</span><span class="n">measpy</span><span class="o">/</span><span class="n">examples</span><span class="o">/../</span><span class="n">measpy</span><span class="o">/</span><span class="n">signal</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">2105</span><span class="p">,</span> <span class="ow">in</span> <span class="n">Spectral</span><span class="o">.</span><span class="n">_add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
-   <span class="mi">2096</span> <span class="s2">&quot;&quot;&quot;Add two spectra</span>
+   <span class="mi">2096</span> <span class="s2">"""Add two spectra</span>
 <span class="s2">   2097 </span>
 <span class="s2">   2098 :param other: Other Spectral to add</span>
 <span class="s2">   (...)</span>
 <span class="s2">   2101 :rtype: Spectral</span>
-<span class="s2">   2102 &quot;&quot;&quot;</span>
+<span class="s2">   2102 """</span>
    <span class="mi">2104</span> <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">same_dimensions_as</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">unit</span><span class="p">):</span>
 <span class="o">-&gt;</span> <span class="mi">2105</span>     <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
-   <span class="mi">2106</span>         <span class="s1">&#39;Incompatible units in addition of Spectral obk=jects&#39;</span><span class="p">)</span>
+   <span class="mi">2106</span>         <span class="s1">'Incompatible units in addition of Spectral obk=jects'</span><span class="p">)</span>
    <span class="mi">2107</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fs</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">fs</span><span class="p">:</span>
    <span class="mi">2108</span>     <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
-   <span class="mi">2109</span>         <span class="s1">&#39;Incompatible sampling frequencies in addition of Spectral objects&#39;</span><span class="p">)</span>
+   <span class="mi">2109</span>         <span class="s1">'Incompatible sampling frequencies in addition of Spectral objects'</span><span class="p">)</span>
 
 
 <span class="ne">Exception</span><span class="p">:</span> <span class="n">Incompatible</span> <span class="n">units</span> <span class="ow">in</span> <span class="n">addition</span> <span class="n">of</span> <span class="n">Spectral</span> <span class="n">obk</span><span class="o">=</span><span class="n">jects</span>
@@ -299,7 +302,7 @@
 <span class="n">G</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
 </pre></div>
 </div>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Time (s)&#39;</span><span class="o">&gt;</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">Axes</span><span class="p">:</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Time (s)'</span><span class="o">&gt;</span>
 </pre></div>
 </div>
 <p><img alt="png" src="_images/2_spectral_tutorial_21_1.png" /></p>
@@ -311,7 +314,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="1_signal_tutorial.html" class="btn btn-neutral float-left" title="Tutorial 1 : The Signal class" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="measpy.html" class="btn btn-neutral float-right" title="measpy package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="3_measurements.html" class="btn btn-neutral float-right" title="Tutorial 3: The Measurement class" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

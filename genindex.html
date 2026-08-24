@@ -47,6 +47,9 @@
 <li class="toctree-l1"><a class="reference internal" href="copyright.html">Copyright</a></li>
 <li class="toctree-l1"><a class="reference internal" href="1_signal_tutorial.html">Signal tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="2_spectral_tutorial.html">Spectral tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="3_measurements.html">Measurement tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="4_spectrum_smoothing_and_weighting.html">Smoothing and weighting tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="5_synced_measurement.html">Synchronized measurement tutorial</a></li>
 <li class="toctree-l1"><a class="reference internal" href="measpy.html">measpy package</a></li>
 </ul>
 
@@ -157,6 +160,8 @@
 </li>
       <li><a href="measpy.html#measpy.pico.Pico_thread.channels_setup">channels_setup() (measpy.pico.Pico_thread method)</a>
 </li>
+      <li><a href="measpy.html#measpy.ni.ni_callback_measurement.check_fs">check_fs() (measpy.ni.ni_callback_measurement method)</a>
+</li>
       <li><a href="measpy.html#measpy.pico.Pico_thread.close_unit">close_unit() (measpy.pico.Pico_thread method)</a>
 </li>
       <li><a href="measpy.html#measpy.signal.Signal.coh">coh() (measpy.signal.Signal method)</a>
@@ -212,6 +217,8 @@
       <li><a href="measpy.html#measpy.signal.Signal.delay">delay() (measpy.signal.Signal method)</a>
 </li>
       <li><a href="measpy.html#measpy.pico.detect_rising_pulses_threshold_ind">detect_rising_pulses_threshold_ind() (in module measpy.pico)</a>
+</li>
+      <li><a href="measpy.html#measpy.ni.ni_callback_measurement.dicsconnect_clock">dicsconnect_clock() (measpy.ni.ni_callback_measurement method)</a>
 </li>
       <li><a href="measpy.html#measpy.signal.Signal.diff">diff() (measpy.signal.Signal method)</a>
 
@@ -420,6 +427,8 @@
 </li>
       <li><a href="measpy.html#measpy.ni.ni_get_devices">ni_get_devices() (in module measpy.ni)</a>
 </li>
+      <li><a href="measpy.html#measpy.ni.ni_get_true_fs">ni_get_true_fs() (in module measpy.ni)</a>
+</li>
       <li><a href="measpy.html#measpy.ni.ni_run_measurement">ni_run_measurement() (in module measpy.ni)</a>
 </li>
       <li><a href="measpy.html#measpy.ni.ni_run_synced_measurement">ni_run_synced_measurement() (in module measpy.ni)</a>
@@ -538,6 +547,8 @@
 </li>
       <li><a href="measpy.html#measpy.signal.Signal.saw">saw() (measpy.signal.Signal class method)</a>
 </li>
+      <li><a href="measpy.html#measpy.ni.self_calib">self_calib() (in module measpy.ni)</a>
+</li>
       <li><a href="measpy.html#measpy.ni.ni_callback_measurement.set_callback">set_callback() (measpy.ni.ni_callback_measurement method)</a>
 </li>
       <li><a href="measpy.html#measpy.pico.Pico_thread.setup_callback">setup_callback() (measpy.pico.Pico_thread method)</a>
@@ -552,10 +563,10 @@
 </li>
       <li><a href="measpy.html#measpy.signal.Signal">Signal (class in measpy.signal)</a>
 </li>
-      <li><a href="measpy.html#measpy.signal.SignalType">SignalType (class in measpy.signal)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="measpy.html#measpy.signal.SignalType">SignalType (class in measpy.signal)</a>
+</li>
       <li><a href="measpy.html#measpy.signal.Signal.similar">similar() (measpy.signal.Signal method)</a>
 
       <ul>
@@ -596,16 +607,18 @@
 </li>
       <li><a href="measpy.html#measpy.signal.Signal.timelag">timelag() (measpy.signal.Signal method)</a>
 </li>
+      <li><a href="measpy.html#measpy.ni.ni_callback_measurement.timing">timing() (measpy.ni.ni_callback_measurement method)</a>
+</li>
       <li><a href="measpy.html#measpy.signal.Signal.tmax">tmax (measpy.signal.Signal property)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="measpy.html#measpy.signal.Signal.to_csv">to_csv() (measpy.signal.Signal method)</a>
 
       <ul>
         <li><a href="measpy.html#measpy.signal.Weighting.to_csv">(measpy.signal.Weighting method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="measpy.html#measpy.signal.Signal.to_csvtxt">to_csvtxt() (measpy.signal.Signal method)</a>
 </li>
       <li><a href="measpy.html#measpy.signal.Signal.to_csvwav">to_csvwav() (measpy.signal.Signal method)</a>
@@ -661,7 +674,11 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="measpy.html#measpy.signal.Spectral.values_at_freqs">values_at_freqs() (measpy.signal.Spectral method)</a>
+
+      <ul>
+        <li><a href="measpy.html#measpy.signal.Weighting.values_at_freqs">(measpy.signal.Weighting method)</a>
 </li>
+      </ul></li>
       <li><a href="measpy.html#measpy.signal.Signal.volts">volts (measpy.signal.Signal property)</a>
 </li>
   </ul></td>
