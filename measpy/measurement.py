@@ -183,6 +183,15 @@ class Measurement:
             self.in_iepe = params.setdefault("in_iepe",list(False for b in self.in_map))
             self.in_sig_config = params.setdefault("in_sig_config", "DEFAULT")
             self.ni_in_sig_bit_resolution = params.setdefault("ni_in_sig_bit_resolution", None)
+            if self.in_device and self.out_device and self.in_device!=self.out_device:
+                if "ref_device" in params and params["ref_device"] in ["in","out"]:
+                    self.ref_device = params["ref_device"]
+                    if "clock_terminal" in params and len(params["clock_terminal"])==2:
+                        self.clock_terminal=params["clock_terminal"]
+                    else:
+                        raise Exception("Clock signal route undefined")
+                else:
+                    raise Exception("Input and output on different device, a reference device and clock signal route should be defined")
         if type(self.out_sig)!=type(None):
             self.io_sync = params.setdefault('io_sync',0)
         elif 'io_sync' in params:

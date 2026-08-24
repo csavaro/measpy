@@ -354,6 +354,7 @@ class ni_callback_measurement:
                         + self.M.in_device
                         + "/ai/SampleClock as output clock : success !"
                     )
+                    #Success even if 2 different device without conexion
                 except:
                     # If it fails, use defaults
                     # Then the in/out are not synchronized
@@ -373,10 +374,13 @@ class ni_callback_measurement:
 
 
     def dicsconnect_clock(self):
-        nidaqmx.system.system.System().disconnect_terms(
-            source_terminal=self.source_terminal,
-            destination_terminal=self.destination_terminal,
-        )
+        try:
+            nidaqmx.system.system.System().disconnect_terms(
+                source_terminal=self.source_terminal,
+                destination_terminal=self.destination_terminal,
+            )
+        except AttributeError:
+            pass
 
     def check_fs(self, timing):
         if self.M.fs!= timing.samp_clk_rate:
