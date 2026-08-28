@@ -65,6 +65,14 @@ def ni_run_measurement(M, filename=None, duration="default", chunck_size = 0):
                 with ni_callback_measurement(M) as NI:
                     NI.set_callback(callback, n_values)
                     NI.run(duration=duration)
+                mesu = M._to_dict()
+                _ = mesu.pop("in_sig",None)
+                _ = mesu.pop("out_sig",None)
+                _ = mesu.pop("data_type",None)
+                _ = mesu.pop("filename",None)
+                for name, value in mesu.items():
+                    if value is not None:
+                        H5file.attrs[name] = value
             M.load_h5data()
         else:
             if input("Write in file canceled, cancel measurement ? y/n\n") == "y":
@@ -76,7 +84,7 @@ def ni_run_measurement(M, filename=None, duration="default", chunck_size = 0):
             nonlocal samples
             samples.extend(buffer_in.copy())
 
-        n_values = min(2**14,int(0.1*M.dur*M.fs))
+        n_values = min(2**14,int(0.1*M._nsamp))
         with ni_callback_measurement(M) as NI:
             NI.set_callback(callback, n_values)
             NI.run(duration=duration)
@@ -231,13 +239,19 @@ class ni_callback_measurement:
                             i
                         ].ai_coupling = niconst.Coupling.AC
 
+                #update measurment with actual values
+                self.M.in_range = self.ai_channels_range
+                self.M.ni_in_sig_bit_resolution = self.ai_channels_bits_resolution
+                self.M.in_adc_temp = self.in_Device.cal_dev_temp #current temperature of the input card
+
+
             self.reader = stream_readers.AnalogMultiChannelReader(
                 self.intask.in_stream
             )
 
             # Set up the write tasks
             if self.M.out_sig is not None:
-                self.nsamps = int(round(self.M.dur * self.M.fs))
+                self.nsamps = self.M._nsamp
                 self.outtask = nidaqmx.Task(new_task_name="out")  # write task
 
                 if self.M.out_sig[0].type == SignalType.ANALOG:
@@ -255,6 +269,11 @@ class ni_callback_measurement:
                             lines=self.M.out_device + "/" + _n_to_don(n),
                             line_grouping=niconst.LineGrouping.CHAN_FOR_ALL_LINES
                         )
+                #update measurment with actual values
+                self.M.out_range = self.ao_channel_range
+                self.M.ni_out_sig_bit_resolution = self.ao_channels_bits_resolution
+                self.M.out_adc_temp = self.out_Device.cal_dev_temp #current temperature of the output card
+
             #set_up timing
             self.timing()
         except Exception as e:
@@ -409,7 +428,6 @@ class ni_callback_measurement:
         self.now = datetime.now()
         self.M.date = self.now.strftime("%Y-%m-%d")
         self.M.time = self.now.strftime("%H:%M:%S")
-        self.M.in_adc_temp = self.in_Device.cal_dev_temp #current temperature of the input card
         if self.M.out_sig != None:
             print("values: ",self.outx[:, 0])
             if len(self.M.out_map) == 1:
@@ -424,15 +442,7 @@ class ni_callback_measurement:
                 # the array to a list.
                 # TODO: Find better solution
                 self.outtask.write((self.outx.T).tolist(), auto_start=False)
-            self.M.out_adc_temp = self.out_Device.cal_dev_temp #current temperature of the output card
-        if self.M.ni_in_sig_bit_resolution is None:
-            self.M.ni_in_sig_bit_resolution = self.ai_channels_bits_resolution
-        else:
-            self.M.ni_in_sig_bit_resolution=to_list(self.M.ni_in_sig_bit_resolution,self.Nchannel)
-            if self.M.ni_in_sig_bit_resolution!=self.ai_channels_bits_resolution:
-                raise ValueError(f"Expected resolution {self.M.ni_in_sig_bit_resolution} "
-                                 f"different from actual channel resolution {self.ai_channels_bits_resolution}")
-        self.M.ni_in_sig_range = self.ai_channels_range
+
         if not self.in_multichannel:
             for s in self.M.in_sig:
                 s.t0 = self.tmin
@@ -440,7 +450,7 @@ class ni_callback_measurement:
             self.M.in_sig.t0 = self.tmin
         if duration:
             if duration == "default":
-                numdesiredsamples = int(round(self.M.fs * self.M.dur))
+                numdesiredsamples = self.M._nsamp
             else:
                 numdesiredsamples = int(round(self.M.fs * duration))
             numBuffersToCapture = int(np.ceil(numdesiredsamples / self.n_values))
@@ -549,6 +559,15 @@ class ni_callback_measurement:
         """
         return [(A.ai_rng_low,A.ai_rng_high) for A in self.intask.ai_channels]
 
+
+    @property
+    def ao_channel_range(self):
+        """
+        Get range of output channels in volt
+        """
+        return [(A.ao_dac_rng_low,A.ao_dac_rng_high) for A in self.outtask.ao_channels]
+
+
     @property
     def ai_channels_bits_resolution(self):
         """
@@ -556,6 +575,15 @@ class ni_callback_measurement:
 
         """
         return [A.ai_resolution for A in self.intask.ai_channels]
+
+    @property
+    def ao_channels_bits_resolution(self):
+        """
+        Get resolution of output channels in bits
+
+        """
+        return [A.ao_resolution for A in self.outtask.ao_channels]
+
 
 def ni_run_synced_measurement(M,in_chan=0,out_chan=0):
     """
@@ -582,7 +610,7 @@ def ni_run_synced_measurement(M,in_chan=0,out_chan=0):
     d = M.sync_render(in_chan=in_chan,out_chan=out_chan)
     return d
 
-def ni_get_true_fs(fs,device_name):
+def ni_get_true_fs(fs,device_name=""):
     system = nidaqmx.system.System.local()
     if device_name == "":
         print(

@@ -22,6 +22,7 @@ from .signal import Signal
 from ._tools import (csv_to_dict, 
                      convl, 
                      convl1,  
+                     convl0,
                      calc_dur_siglist,
                      ensure_new_filename,
                      )
@@ -92,7 +93,7 @@ class Measurement:
             if 'fs' in params:
                 if params['fs']!=self.out_sig[0].fs:
                     print('Selected sampling frequency '+str(params['fs'])+'Hz is different to that given in signals in out_sig list')
-                    print("Task's sampling frequency is set to the selected value in outpu signals: "+str(self.out_sig[0].fs)+"Hz.")
+                    print("Task's sampling frequency is set to the selected value in output signals: "+str(self.out_sig[0].fs)+"Hz.")
             self.fs = self.out_sig[0].fs
             if type(self.in_sig)==type(None):
                 print ("This is a task with no input.")
@@ -134,19 +135,20 @@ class Measurement:
         self.in_device = params.setdefault("in_device",'')
         self.out_device = params.setdefault("out_device",'')
 
+
         # Check durations
-        if 'dur' in params:
-            if type(self.out_sig)==type(None):
-                self.dur = params['dur']
+        if 'dur' in params or 'nsamp' in params:
+            if 'nsamp' in params:
+                self._nsamp = int(round(params['nsamp']))
             else:
+                self.dur = params['dur']
+            if type(self.out_sig)!=type(None):
                 dursigs = calc_dur_siglist(self.out_sig)
-                if params['dur']!=dursigs:
+                if self.dur!=dursigs:
                     print(f"Selected duration {params['dur']} is different than duration of combined output signals.")
                     N = int(np.ceil(params['dur']/dursigs))
                     self.dur = N*dursigs
                     print(f'It is changed to match : dur = {self.dur} which is {N} output signals')
-                else:
-                    self.dur = dursigs
         else:
             if type(self.out_sig)==type(None):
                 #raise Exception('No duration nor out_sig given. Impossible to determine task duration')
@@ -349,7 +351,6 @@ class Measurement:
                 dbfs=dbfs,
                 )
 
-
     def load_h5data(self):
         if hasattr(self, "filename"):
             print(f"Loading data from {self.filename}")
@@ -370,6 +371,16 @@ class Measurement:
         for i in H5file.keys():
             if i not in ["in_sig","out_sig"]:
                 print(f"Warning : this file contain a dataset named {i}")
+
+    # ------------------------
+    @property
+    def dur(self):
+        return self._nsamp/self.fs
+
+    @dur.setter
+    def dur(self,val):
+        self._nsamp = int(round(val*self.fs))
+
 
     # ------------------------
     @classmethod
@@ -415,13 +426,23 @@ class Measurement:
     def _from_dict(cls, task_dict):
         self=cls()
         self.fs=convl1(float,task_dict['fs'])
-        self.dur=convl1(float,task_dict['dur'])
-        self.desc=convl1(str,task_dict['desc'])
         try:
-            self.date=convl1(str,task_dict['date'])
-            self.time=convl1(str,task_dict['time'])
-        except:
-            pass
+            self.dur=convl1(float,task_dict['dur'])
+        except KeyError:
+            self._nsamp=convl1(int,task_dict['_nsamp'])
+        self.desc=convl1(str,task_dict['desc'])
+        for name ,fun in {'date':str,
+                          'time':str,
+                          'ni_in_sig_bit_resolution':int,
+                          'ni_out_sig_bit_resolution':int,
+                          'in_adc_temp':float,
+                          'out_adc_temp':float,
+                          'fc':float,
+                          'n_pulse':int}.items():
+            try:
+                setattr(self, name, convl0(fun,task_dict[name]))
+            except:
+                pass
         self.device_type=convl1(str,task_dict['device_type'])
 
         if 'in_map' in task_dict:
@@ -497,11 +518,11 @@ class Measurement:
         # NI specifics
         if self.device_type == 'ni':
             try:
-                self.in_range = convl1(float,task_dict['in_range'])
+                self.in_range = convl0(float,task_dict['in_range'])
             except:
                 self.in_range = None
             try:
-                self.out_range = convl1(float,task_dict['out_range'])
+                self.out_range = convl0(float,task_dict['out_range'])
             except:
                 self.out_range = None
             try:
